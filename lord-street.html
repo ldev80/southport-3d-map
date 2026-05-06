@@ -1135,9 +1135,13 @@ function updateHotspotPositions() {
       return;
     }
 
+    const mapFrame = document.getElementById('mapFrame');
+    const offsetX = mapFrame.offsetLeft;
+    const offsetY = mapFrame.offsetTop;
+
     el.style.display = 'block';
-    el.style.left = screen.x + 'px';
-    el.style.top = screen.y + 'px';
+    el.style.left = (screen.x + offsetX) + 'px';
+    el.style.top = (screen.y + offsetY) + 'px';
   });
 }
 
