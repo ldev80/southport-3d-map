@@ -869,18 +869,18 @@ const BUILDINGS = [
     lat: 53.652025082443096, lon: -3.006254494, altitude: 25, side: 'west',
     timeline: [
       { name: 'Windmill', start: null, end: 1929, photos: [
-        { url: 'images/Promenade/Pumping Station/1900.jpg', year: 1900 },
-        { url: 'images/Promenade/Pumping Station/1910.jpg', year: 1910 }
+        { url: 'images/Promenade/Windmill/1900.jpeg', year: 1900 },
+        { url: 'images/Promenade/Windmill/1910.jpg', year: 1910 }
       ]},
       { name: 'Floral Hall', start: 1930, end: 2023, photos: [
-        { url: 'images/Promenade/Pumping Station/1930.jpg', year: 1930 },
-        { url: 'images/Promenade/Pumping Station/1960.jpg', year: 1960 }
+        { url: 'images/Promenade/Windmill/1930.jpg', year: 1930 },
+        { url: 'images/Promenade/Windmill/1960.jpg', year: 1960 }
       ]}
     ]
   },
   {
     id: 'victoria-hotel', name: 'Victoria Hotel',
-    lat: 53.65057761760742, lon: -3.006646778, altitude: 25, side: 'east',
+    lat: 53.64992015, lon: -3.007092259, altitude: 25, side: 'east',
     timeline: [
       { name: 'Victoria Hotel', start: 1865, end: 1971, photos: [
         { url: 'images/Promenade/Victoria Hotel/1915.jpg', year: 1915 }
@@ -959,6 +959,46 @@ async function initCesium(googleKey) {
     document.getElementById('loader').textContent = 'Could not load Google tiles — check API key. (' + (err.message || err) + ')';
     return;
   }
+
+  // Clamp camera to the area of interest
+  const BOUNDS = {
+    south: 53.641,
+    north: 53.657,
+    west: -3.016,
+    east: -2.996,
+    minHeight: 50,
+    maxHeight: 800
+  };
+
+  viewer.scene.postRender.addEventListener(() => {
+    const carto = viewer.camera.positionCartographic;
+    const lon = Cesium.Math.toDegrees(carto.longitude);
+    const lat = Cesium.Math.toDegrees(carto.latitude);
+    const alt = carto.height;
+
+    let clamped = false;
+    let clampedLon = lon;
+    let clampedLat = lat;
+    let clampedAlt = alt;
+
+    if (lon < BOUNDS.west) { clampedLon = BOUNDS.west; clamped = true; }
+    if (lon > BOUNDS.east) { clampedLon = BOUNDS.east; clamped = true; }
+    if (lat < BOUNDS.south) { clampedLat = BOUNDS.south; clamped = true; }
+    if (lat > BOUNDS.north) { clampedLat = BOUNDS.north; clamped = true; }
+    if (alt < BOUNDS.minHeight) { clampedAlt = BOUNDS.minHeight; clamped = true; }
+    if (alt > BOUNDS.maxHeight) { clampedAlt = BOUNDS.maxHeight; clamped = true; }
+
+    if (clamped) {
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(clampedLon, clampedLat, clampedAlt),
+        orientation: {
+          heading: viewer.camera.heading,
+          pitch: viewer.camera.pitch,
+          roll: viewer.camera.roll
+        }
+      });
+    }
+  });
 
   // Fly to Lord Street, Southport
   viewer.camera.flyTo({
