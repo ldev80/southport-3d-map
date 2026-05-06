@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lord Street — A Vanished Boulevard</title>
+
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.140/Build/Cesium/Cesium.js"></script>
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.140/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #cc00ff;
+    --frame-border: #0000ff;
+    --frame-inner: #fff;
+    --ink: #1a1611;
+    --paper: #f1ebdd;
+    --accent: #cc00ff;
+    --era-text: #9000c0;
+    --timeline-bg: #110044;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- 9-slice image frame ---- */
+  .frame {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .frame-corner {
+    position: absolute;
+    display: block;
+  }
+
+  .frame-tl { top: 0; left: 0; width: 257px; height: 257px; }
+  .frame-tr { top: 0; right: 0; width: 257px; height: 257px; }
+  .frame-bl { bottom: 0; left: 0; width: 97px; height: 129px; }
+  .frame-br { bottom: 0; right: 0; width: 97px; height: 129px; }
+
+  .frame-edge {
+    position: absolute;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+  }
+
+  .frame-top {
+    top: 0;
+    left: 257px;
+    right: 257px;
+    height: 86px;
+    background-image: url('images/html/frame_top_1.png');
+  }
+
+  .frame-bottom {
+    bottom: 0;
+    left: 97px;
+    right: 97px;
+    height: 99px;
+    background-image: url('images/html/frame_bottom.png');
+  }
+
+  .frame-left {
+    left: 0;
+    top: 257px;
+    bottom: 129px;
+    width: 69px;
+    background-image: url('images/html/frame_left.png');
+  }
+
+  .frame-right {
+    right: 0;
+    top: 257px;
+    bottom: 129px;
+    width: 69px;
+    background-image: url('images/html/frame_right.png');
+  }
+
+  /* ---- Map clipping frame ---- */
+  .map-frame {
+    position: absolute;
+    top: 86px;
+    bottom: 99px;
+    left: 69px;
+    right: 69px;
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  #cesiumContainer {
+    position: absolute;
+    inset: 0;
+    filter: sepia(1) saturate(0.4) contrast(1.1) brightness(0.9);
+    transition: filter 1.2s ease;
+  }
+
+  /* Hide most Cesium chrome — keep credits only (required by Google ToS) */
+  .cesium-viewer-toolbar,
+  .cesium-viewer-animationContainer,
+  .cesium-viewer-timelineContainer,
+  .cesium-viewer-bottom { display: none !important; }
+  .cesium-widget-credits {
+    color: rgba(255, 255, 255, 0.7) !important;
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif !important;
+    font-size: 10px !important;
+  }
+
+  /* ---- Header (hidden, replaced by artwork) ---- */
+  .masthead { display: none; }
+  .title-block { display: none; }
+  .eyebrow { display: none; }
+  h1 { display: none; }
+  h1 em { display: none; }
+  .meta { display: none; }
+
+  /* ---- Header artwork (era-specific) ---- */
+  .header-artwork {
+    position: absolute;
+    top: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 100px;
+    width: 500px;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  .header-art {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+  }
+
+  .header-art.active {
+    opacity: 1;
+  }
+
+  /* ---- Era year numbers on sides ---- */
+  .era-year {
+    position: absolute;
+    z-index: 0;
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-weight: 700;
+    font-size: clamp(80px, 12vw, 180px);
+    color: var(--era-text);
+    pointer-events: none;
+    top: 50%;
+    line-height: 0.9;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    letter-spacing: -0.08em;
+  }
+
+  .era-year-start {
+    left: 0;
+    transform: translateY(-50%);
+  }
+
+  .era-year-end {
+    right: 0;
+    transform: translateY(-50%);
+  }
+
+  /* ---- Custom hotspot pin (rendered as HTML overlay, positioned by Cesium) ---- */
+  .hotspot {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 5;
+    transition: transform 0.2s cubic-bezier(.2,.8,.2,1);
+    will-change: transform;
+  }
+
+  .hotspot:hover { transform: translate(-50%, -100%) scale(1.08); }
+
+  .hotspot-thumb {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid #fff;
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  .hotspot:hover .hotspot-thumb {
+    border-color: var(--accent);
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.5), 0 0 0 4px rgba(204, 0, 255, 0.4);
+  }
+
+  .hotspot-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .hotspot-stem {
+    width: 1px;
+    height: 16px;
+    background: #000;
+    margin: 0 auto;
+  }
+
+  /* No-photo dot marker */
+  .hotspot.no-photo .hotspot-thumb {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #fff;
+    background: #666;
+  }
+  .hotspot.no-photo .hotspot-thumb img { display: none; }
+  .hotspot.no-photo .hotspot-stem { height: 8px; }
+  .hotspot.no-photo .hotspot-pulse { display: none; }
+
+  /* Pulsing ring to draw the eye */
+  .hotspot-pulse {
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translate(-50%, 0);
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    opacity: 0;
+    animation: pulse 2.4s ease-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes pulse {
+    0% { transform: translate(-50%, 0) scale(0.8); opacity: 0.7; }
+    100% { transform: translate(-50%, 0) scale(2.2); opacity: 0; }
+  }
+
+  /* ---- Footer bar (removed, replaced by frame) ---- */
+  .footer-bar { display: none; }
+
+  /* ---- Era selector (pill timeline) ---- */
+  .era-selector {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    gap: 32px;
+    background: var(--timeline-bg);
+    border: 4px solid var(--frame-border);
+    border-radius: 100px;
+    padding: 12px 24px;
+    box-shadow: none;
+  }
+
+  .era-btn {
+    padding: 10px 18px;
+    background: transparent;
+    border: none;
+    border-radius: 100px;
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.3em;
+    cursor: pointer;
+    color: #fff;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  .era-btn:hover { background: rgba(255, 255, 255, 0.1); }
+
+  .era-btn.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* ---- Photo lightbox (covers map frame) ---- */
+  .photo-viewer {
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(0, 0, 0, 0.75);
+    border-radius: 0;
+    padding: 180px 64px 40px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
+  }
+
+  .photo-viewer.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Hide markers and timeline when overlay is open */
+  body.viewer-active .hotspot {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  body.viewer-active .era-selector {
+    display: none;
+  }
+
+  /* Close button — sits above the frame */
+  .viewer-close {
+    position: absolute;
+    top: 102px;
+    right: 85px;
+    width: 40px; height: 40px;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-size: 22px;
+    line-height: 1;
+    z-index: 20;
+    transition: background 0.15s ease;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .viewer-close.visible {
+    display: flex;
+  }
+
+  .viewer-close:hover { background: rgba(255,255,255,0.25); }
+
+  .viewer-header {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .viewer-name {
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-weight: 500;
+    font-size: 1.5rem;
+    letter-spacing: 0.5em;
+    text-transform: uppercase;
+    color: #fff;
+    display: block;
+  }
+
+  .viewer-date-range {
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.5em;
+    color: #fff;
+    display: block;
+  }
+
+  .photo-viewer img {
+    max-width: calc(100% - 32px);
+    max-height: 50vh;
+    display: block;
+    border: 8px solid #fff;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  }
+
+  .viewer-footer {
+    text-align: center;
+  }
+
+  .viewer-date {
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.5em;
+    color: #fff;
+    display: block;
+  }
+
+  /* ---- API key prompt ---- */
+  .key-prompt {
+    position: absolute;
+    inset: 0;
+    z-index: 200;
+    background: var(--ink);
+    color: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  .key-prompt-inner {
+    max-width: 520px;
+    text-align: center;
+  }
+
+  .key-prompt h2 {
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-weight: 400;
+    font-size: 36px;
+    margin-bottom: 8px;
+  }
+
+  .key-prompt p {
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(241, 235, 221, 0.75);
+    margin-bottom: 20px;
+  }
+
+  .key-prompt code {
+    background: rgba(241, 235, 221, 0.08);
+    padding: 2px 6px;
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-size: 12px;
+    color: #f1ebdd;
+  }
+
+  .key-prompt input {
+    width: 100%;
+    padding: 12px 16px;
+    background: transparent;
+    border: 1px solid rgba(241, 235, 221, 0.3);
+    color: var(--paper);
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+
+  .key-prompt input:focus { outline: none; border-color: var(--accent); }
+
+  .key-prompt button {
+    background: var(--accent);
+    color: var(--paper);
+    border: none;
+    padding: 12px 28px;
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .key-prompt button:hover { background: #c44025; }
+
+  .key-prompt small {
+    display: block;
+    margin-top: 18px;
+    font-size: 11px;
+    color: rgba(241, 235, 221, 0.5);
+    line-height: 1.5;
+  }
+
+  /* Loading spinner */
+  .loader {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+    font-style: italic;
+    font-size: 22px;
+    letter-spacing: 0.05em;
+  }
+
+  .loader.hidden { display: none; }
+
+  /* Mobile */
+  @media (max-width: 768px) {
+    .frame-tl, .frame-tr { width: 128px; height: 128px; }
+    .frame-bl, .frame-br { width: 48px; height: 64px; }
+    .frame-top { left: 128px; right: 128px; height: 43px; }
+    .frame-bottom { left: 48px; right: 48px; height: 50px; }
+    .frame-left { top: 128px; bottom: 64px; width: 35px; }
+    .frame-right { top: 128px; bottom: 64px; width: 35px; }
+    .map-frame { top: 43px; bottom: 50px; left: 35px; right: 35px; }
+    .viewer-close { top: auto; right: auto; bottom: 66px; left: 50%; transform: translateX(-50%); }
+    .header-artwork { height: 50px; width: 260px; top: 16px; }
+    .era-year { font-size: clamp(40px, 10vh, 80px); }
+    .photo-viewer { padding: 90px 24px 20px; justify-content: center; gap: 12px; }
+    .viewer-header { gap: 4px; }
+    .era-selector { bottom: 16px; gap: 12px; padding: 8px 16px; }
+    .era-btn { padding: 6px 10px; font-size: 10px; letter-spacing: 0.15em; }
+    .hotspot-thumb { width: 64px; height: 64px; }
+    .hotspot-pulse { width: 64px; height: 64px; }
+    .hotspot.no-photo .hotspot-thumb { width: 16px; height: 16px; }
+    .viewer-name { font-size: 1.1rem; letter-spacing: 0.3em; }
+    .viewer-date-range { font-size: 0.8rem; letter-spacing: 0.3em; }
+    .viewer-date { font-size: 0.8rem; letter-spacing: 0.3em; }
+  }
+</style>
+</head>
+<body>
+
+
+<div class="loader" id="loader">Approaching Southport…</div>
+
+<div class="frame">
+  <img class="frame-corner frame-tl" src="images/html/frame_top-left.png" alt="">
+  <img class="frame-corner frame-tr" src="images/html/frame_top-right.png" alt="">
+  <img class="frame-corner frame-bl" src="images/html/frame_bottom-left.png" alt="">
+  <img class="frame-corner frame-br" src="images/html/frame_bottom-right.png" alt="">
+  <div class="frame-edge frame-top"></div>
+  <div class="frame-edge frame-bottom"></div>
+  <div class="frame-edge frame-left"></div>
+  <div class="frame-edge frame-right"></div>
+</div>
+<div class="map-frame" id="mapFrame">
+  <div id="cesiumContainer"></div>
+  <!-- Photo lightbox -->
+  <div class="photo-viewer" id="photoViewer">
+    <div class="viewer-header">
+      <span class="viewer-name" id="viewerName"></span>
+      <span class="viewer-date-range" id="viewerDateRange"></span>
+    </div>
+    <img id="viewerImg" src="" alt="">
+    <div class="viewer-footer">
+      <span class="viewer-date" id="viewerDate"></span>
+    </div>
+  </div>
+</div>
+
+<button class="viewer-close" id="viewerClose" aria-label="Close">&times;</button>
+
+<div class="era-year era-year-start" id="eraYearStart">1800</div>
+<div class="era-year era-year-end" id="eraYearEnd">1915</div>
+
+<div class="header-artwork" id="headerArtwork">
+  <img class="header-art active" data-era="0" src="images/artwork/header_01.svg" alt="Southport">
+  <img class="header-art" data-era="1" src="images/artwork/header_02.svg" alt="Southport">
+  <img class="header-art" data-era="2" src="images/artwork/header_03.svg" alt="Southport">
+  <img class="header-art" data-era="3" src="images/artwork/header_04.svg" alt="Southport">
+</div>
+
+<!-- Era selector -->
+<div class="era-selector" id="eraSelector">
+  <button class="era-btn active" data-era="0">1800–1915</button>
+  <button class="era-btn" data-era="1">1916–1929</button>
+  <button class="era-btn" data-era="2">1930–1969</button>
+  <button class="era-btn" data-era="3">1970–1989</button>
+</div>
+
+<script>
+// ============================================================================
+// HOTSPOT DATA — sourced from verified spreadsheet, ordered south to north
+// ============================================================================
+const BUILDINGS = [
+  {
+    id: 'wellington-terrace', name: 'Wellington Terrace',
+    lat: 53.64438316, lon: -3.011374476, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Wellington Terrace', start: null, end: null, photos: [
+        { url: 'images/LordSt/Wellington Terrace/1880.webp', year: 1880 }
+      ]}
+    ]
+  },
+  {
+    id: 'regal-cinema', name: 'Regal Cinema',
+    lat: 53.6446901, lon: -3.010693379, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Regal Cinema', start: 1938, end: 1962, photos: [
+        { url: 'images/LordSt/Regal Cinema/1938.png', year: 1938 },
+        { url: 'images/LordSt/Regal Cinema/1945.webp', year: 1945 },
+        { url: 'images/LordSt/Regal Cinema/1950.jpg', year: 1950 },
+        { url: 'images/LordSt/Regal Cinema/1952.jpg', year: 1952 }
+      ]},
+      { name: 'ABC Cinema', start: 1962, end: 1987, photos: [
+        { url: 'images/LordSt/Regal Cinema/1979.jpeg', year: 1979 }
+      ]}
+    ]
+  },
+  {
+    id: 'lord-st-station', name: 'Lord St Railway Station',
+    lat: 53.64493891, lon: -3.012235937, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Lord St Railway Station', start: 1884, end: 1959, photos: [
+        { url: 'images/LordSt/Lord St Railway Station/1930.jpg', year: 1930 }
+      ]}
+    ]
+  },
+  {
+    id: 'opera-house', name: 'Opera House',
+    lat: 53.64535053, lon: -3.011828719, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Opera House', start: 1891, end: 1929, photos: [
+        { url: 'images/LordSt/Opera House/1920.jpg', year: 1920 },
+        { url: 'images/LordSt/Opera House/1929.jpg', year: 1929 },
+        { url: 'images/LordSt/Opera House/1929.png', year: 1929 }
+      ]},
+      { name: 'Garrick Theatre', start: 1930, end: 1962, photos: [] },
+      { name: 'Essoldo Bingo Hall', start: 1963, end: 1984, photos: [] },
+      { name: 'Top Rank Bingo', start: 1984, end: 2020, photos: [] }
+    ]
+  },
+  {
+    id: 'empire-theatre', name: 'Empire Picture Theatre',
+    lat: 53.64571077, lon: -3.011001364, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Empire Picture Theatre', start: 1908, end: 1921, photos: [] },
+      { name: 'Scala', start: 1921, end: 1962, photos: [
+        { url: 'images/LordSt/Scala/1940.avif', year: 1940 }
+      ]}
+    ]
+  },
+  {
+    id: 'picturedrome', name: 'Picturedrome',
+    lat: 53.64603635, lon: -3.008331168, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Picturedrome', start: 1910, end: 1933, photos: [
+        { url: 'images/LordSt/Picturedrome/1910.jpg', year: 1910 }
+      ]},
+      { name: 'Forum Cinema', start: 1933, end: 1957, photos: [] }
+    ]
+  },
+  {
+    id: 'picture-palace', name: 'Picture Palace',
+    lat: 53.646606, lon: -3.007261523, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Picture Palace', start: 1911, end: 1929, photos: [] },
+      { name: 'Palace Cinema', start: 1930, end: 1971, photos: [
+        { url: 'images/LordSt/Picture Palace/1930.jpg', year: 1930 }
+      ]},
+      { name: 'Classic Cinema', start: 1972, end: 2003, photos: [
+        { url: 'images/LordSt/Picture Palace/2002.jpg', year: 2002 }
+      ]}
+    ]
+  },
+  {
+    id: 'atkinson-library', name: 'Atkinson Library',
+    lat: 53.64697254, lon: -3.00640958, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Atkinson Library', start: null, end: null, photos: [] }
+    ]
+  },
+  {
+    id: 'cambridge-hall', name: 'Cambridge Hall',
+    lat: 53.64725706, lon: -3.005923232, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Cambridge Hall', start: null, end: null, photos: [
+        { url: 'images/LordSt/Cambridge Hall/1900.jpg', year: 1900 },
+        { url: 'images/LordSt/Cambridge Hall/1913.jpg', year: 1913 }
+      ]}
+    ]
+  },
+  {
+    id: 'scarisbrick-avenue', name: 'Scarisbrick Avenue',
+    lat: 53.64739865, lon: -3.007569652, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Scarisbrick Avenue', start: null, end: null, photos: [
+        { url: 'images/LordSt/Scarisbrick Avenue/1888.jpeg', year: 1888 },
+        { url: 'images/LordSt/Scarisbrick Avenue/1900.jpg', year: 1900 }
+      ]}
+    ]
+  },
+  {
+    id: 'town-hall', name: 'Town Hall',
+    lat: 53.64752969, lon: -3.005535763, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Town Hall', start: null, end: null, photos: [] }
+    ]
+  },
+  {
+    id: 'scarisbrick-hotel', name: 'Scarisbrick Hotel',
+    lat: 53.64758293, lon: -3.007527607, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Scarisbrick Hotel', start: null, end: null, photos: [
+        { url: 'images/LordSt/Scarisbrick Hotel/1860.png', year: 1860 },
+        { url: 'images/LordSt/Scarisbrick Hotel/1890.avif', year: 1890 },
+        { url: 'images/LordSt/Scarisbrick Hotel/1950.png', year: 1950 }
+      ]}
+    ]
+  },
+  {
+    id: 'christ-church', name: 'Christ Church',
+    lat: 53.64780844, lon: -3.00505313, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Christ Church', start: null, end: null, photos: [] }
+    ]
+  },
+  {
+    id: 'palais-du-danse', name: 'Palais Du Danse',
+    lat: 53.64804885, lon: -3.004611233, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Palais Du Danse', start: 1925, end: 1929, photos: [
+        { url: 'images/LordSt/Palais De Danse/1925.jpg', year: 1925 }
+      ]},
+      { name: 'Trocadero Cinema', start: 1930, end: 1960, photos: [
+        { url: 'images/LordSt/Palais De Danse/1930.jpeg', year: 1930 }
+      ]},
+      { name: 'Woolworth', start: 1960, end: 2008, photos: [] }
+    ]
+  },
+  {
+    id: 'broadbents', name: 'Broadbents',
+    lat: 53.64823059, lon: -3.006280169, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Broadbents', start: null, end: null, photos: [] }
+    ]
+  },
+  {
+    id: 'leyland-arcade', name: 'Leyland Arcade',
+    lat: 53.64837409, lon: -3.006061505, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Leyland Arcade', start: 1898, end: null, photos: [
+        { url: 'images/LordSt/Leyland Arcade/1910.avif', year: 1910 }
+      ]},
+      { name: 'Burton Arcade', start: null, end: null, photos: [] },
+      { name: 'Wayfarers Arcade', start: null, end: null, photos: [] }
+    ]
+  },
+  {
+    id: 'london-square', name: 'London Square',
+    lat: 53.64870479, lon: -3.004313449, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'London Square', start: null, end: 1922, photos: [
+        { url: 'images/LordSt/London Square/1900.jpg', year: 1900 },
+        { url: 'images/LordSt/London Square/1910.jpg', year: 1910 }
+      ]},
+      { name: 'Southport War Memorial', start: 1923, end: null, photos: [] }
+    ]
+  },
+  {
+    id: 'palladium', name: 'Palladium',
+    lat: 53.64922832, lon: -3.002357338, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Palladium', start: 1914, end: 1949, photos: [
+        { url: 'images/LordSt/Palladium/1914.jpg', year: 1914 },
+        { url: 'images/LordSt/Palladium/1930.jpg', year: 1930 }
+      ]},
+      { name: 'Gaumont', start: 1950, end: 1961, photos: [] },
+      { name: 'Odeon Cinema', start: 1962, end: 1979, photos: [
+        { url: 'images/LordSt/Palladium/1970.webp', year: 1970 },
+        { url: 'images/LordSt/Palladium/1979.jpeg', year: 1979 },
+        { url: 'images/LordSt/Palladium/1980.jpg', year: 1980 }
+      ]}
+    ]
+  },
+  {
+    id: 'grand-cinema', name: 'Grand Cinema',
+    lat: 53.65115946, lon: -2.999604201, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Grand Cinema', start: 1923, end: 1966, photos: [
+        { url: 'images/LordSt/Grand Cinema/1938.jpg', year: 1938 }
+      ]},
+      { name: 'Grand Casino', start: 1967, end: 2007, photos: [] }
+    ]
+  },
+
+  // ── Chapel St ──────────────────────────────────────────────────────────
+  {
+    id: 'market-hall', name: 'Market Hall',
+    lat: 53.64624526, lon: -3.006482641, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Market Hall', start: 1881, end: 1913, photos: [
+        { url: 'images/ChapelSt/XXEastbankSt_MarketHall/1913_MarketHall.jpg', year: 1913 }
+      ]},
+      { name: 'Southport Cooperative', start: 1934, end: 1981, photos: [
+        { url: 'images/ChapelSt/Southport Cooperative/19XX_SouthportCoOperative.png', year: 1950 }
+      ]},
+      { name: 'McDonalds', start: 1982, end: 2014, photos: [] }
+    ]
+  },
+  {
+    id: 'congregational-church', name: 'Congregational Church',
+    lat: 53.64651066, lon: -3.005887723, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Congregational Church', start: 1823, end: 1964, photos: [
+        { url: 'images/ChapelSt/Congregational Church/1900.jpg', year: 1900 },
+        { url: 'images/ChapelSt/Congregational Church/1920.jpeg', year: 1920 }
+      ]},
+      { name: 'Littlewoods', start: 1965, end: 2005, photos: [
+        { url: 'images/ChapelSt/Congregational Church/1965.png', year: 1965 },
+        { url: 'images/ChapelSt/Congregational Church/1978.jpg', year: 1978 }
+      ]}
+    ]
+  },
+  {
+    id: 'barret-birtwhistle', name: 'Barret & Birtwhistle',
+    lat: 53.64700045, lon: -3.004736051, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Barret & Birtwhistle', start: 1871, end: null, photos: [
+        { url: 'images/ChapelSt/Barretts %26 Birtwhistle/1900.webp', year: 1900 },
+        { url: 'images/ChapelSt/Barretts %26 Birtwhistle/1910.jpg', year: 1910 }
+      ]},
+      { name: 'Broadbents', start: 1919, end: null, photos: [] }
+    ]
+  },
+  {
+    id: 'marks-spencers', name: 'Marks & Spencers',
+    lat: 53.64731836, lon: -3.004235049, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Marks & Spencers', start: 1910, end: 1971, photos: [
+        { url: 'images/ChapelSt/Marks %26 Spencers/1950.jpg', year: 1950 }
+      ]},
+      { name: 'Woolworth', start: 1975, end: 2008, photos: [
+        { url: 'images/ChapelSt/Marks %26 Spencers/1975.jpg', year: 1975 }
+      ]}
+    ]
+  },
+  {
+    id: 'chapel-st-station', name: 'Southport Chapel St Station',
+    lat: 53.64708801, lon: -3.003943531, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Southport Chapel St Station', start: 1848, end: null, photos: [
+        { url: 'images/ChapelSt/XXChapelSt_SouthportChapelStStation/1910.jpg', year: 1910 },
+        { url: 'images/ChapelSt/XXChapelSt_SouthportChapelStStation/1920.avif', year: 1920 },
+        { url: 'images/ChapelSt/XXChapelSt_SouthportChapelStStation/1930.jpg', year: 1930 },
+        { url: 'images/ChapelSt/XXChapelSt_SouthportChapelStStation/1970.jpg', year: 1970 }
+      ]}
+    ]
+  },
+
+  // ── Promenade ──────────────────────────────────────────────────────────
+  {
+    id: 'winter-gardens', name: 'Winter Gardens',
+    lat: 53.64660163, lon: -3.011992472, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Winter Gardens', start: 1874, end: 1929, photos: [
+        { url: 'images/Promenade/Winter Gardens/1900.jpg', year: 1900 },
+        { url: 'images/Promenade/Winter Gardens/1920.jpg', year: 1920 }
+      ]},
+      { name: 'Kingsway Cafe', start: 1934, end: 1961, photos: [
+        { url: 'images/Promenade/Winter Gardens/1930.jpg', year: 1930 }
+      ]},
+      { name: 'Kingsway Casino', start: 1962, end: 2010, photos: [] }
+    ]
+  },
+  {
+    id: 'royal-hotel', name: 'Royal Hotel',
+    lat: 53.64702913, lon: -3.010877587, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Royal Hotel', start: 1854, end: 1972, photos: [
+        { url: 'images/Promenade/Royal Hotel/1930.jpg', year: 1930 }
+      ]},
+      { name: 'Royal Clifton Hotel', start: 1972, end: null, photos: [] }
+    ]
+  },
+  {
+    id: 'windmill', name: 'Windmill',
+    lat: 53.652025082443096, lon: -3.006254494, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Windmill', start: null, end: 1929, photos: [
+        { url: 'images/Promenade/Pumping Station/1900.jpg', year: 1900 },
+        { url: 'images/Promenade/Pumping Station/1910.jpg', year: 1910 }
+      ]},
+      { name: 'Floral Hall', start: 1930, end: 2023, photos: [
+        { url: 'images/Promenade/Pumping Station/1930.jpg', year: 1930 },
+        { url: 'images/Promenade/Pumping Station/1960.jpg', year: 1960 }
+      ]}
+    ]
+  },
+  {
+    id: 'victoria-hotel', name: 'Victoria Hotel',
+    lat: 53.65057761760742, lon: -3.006646778, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Victoria Hotel', start: 1865, end: 1971, photos: [
+        { url: 'images/Promenade/Victoria Hotel/1915.jpg', year: 1915 }
+      ]}
+    ]
+  },
+  {
+    id: 'southport-pier', name: 'Southport Pier',
+    lat: 53.65058814, lon: -3.008206203, altitude: 25, side: 'west',
+    timeline: [
+      { name: 'Southport Pier', start: null, end: null, photos: [
+        { url: 'images/Promenade/Southport Pier/1900.jpg', year: 1900 },
+        { url: 'images/Promenade/Southport Pier/1910.jpg', year: 1910 },
+        { url: 'images/Promenade/Southport Pier/1920.jpg', year: 1920 },
+        { url: 'images/Promenade/Southport Pier/1935.jpg', year: 1935 },
+        { url: 'images/Promenade/Southport Pier/1947.jpg', year: 1947 },
+        { url: 'images/Promenade/Southport Pier/1952.jpg', year: 1952 },
+        { url: 'images/Promenade/Southport Pier/1960.jpg', year: 1960 }
+      ]}
+    ]
+  },
+  {
+    id: 'convalescent-home', name: 'Convalescent Home',
+    lat: 53.65384404, lon: -3.003094435, altitude: 25, side: 'east',
+    timeline: [
+      { name: 'Convalescent Home', start: null, end: null, photos: [
+        { url: 'images/Promenade/Convalescent Home/1900.jpg', year: 1900 }
+      ]}
+    ]
+  }
+];
+
+// ============================================================================
+// API KEY HANDLING
+// ============================================================================
+let viewer;
+const hotspotElements = new Map();
+
+const API_KEY = 'AIzaSyB3y3mk2apYZVTzBimsOwRPxSXMSJjYC8I';
+initCesium(API_KEY);
+
+// ============================================================================
+// CESIUM INITIALISATION
+// ============================================================================
+
+async function initCesium(googleKey) {
+  // Cesium Ion is not required for Google tiles, but a default token avoids warnings
+  Cesium.Ion.defaultAccessToken = '';
+
+  viewer = new Cesium.Viewer('cesiumContainer', {
+    globe: false,
+    baseLayerPicker: false,
+    geocoder: false,
+    homeButton: false,
+    sceneModePicker: false,
+    navigationHelpButton: false,
+    fullscreenButton: false,
+    infoBox: false,
+    selectionIndicator: false,
+    timeline: false,
+    animation: false,
+    skyBox: false,
+    skyAtmosphere: false,
+  });
+
+  viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#1a1611');
+
+  try {
+    const tileset = await Cesium.createGooglePhotorealistic3DTileset(
+      { key: googleKey },
+      { showCreditsOnScreen: true }
+    );
+    viewer.scene.primitives.add(tileset);
+  } catch (err) {
+    console.error('Tileset load failed:', err);
+    document.getElementById('loader').textContent = 'Could not load Google tiles — check API key. (' + (err.message || err) + ')';
+    return;
+  }
+
+  // Fly to Lord Street, Southport
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(-3.0048, 53.6455, 380),
+    orientation: {
+      heading: Cesium.Math.toRadians(20),
+      pitch: Cesium.Math.toRadians(-35),
+      roll: 0
+    },
+    duration: 3.5,
+    complete: () => {
+      document.getElementById('loader').classList.add('hidden');
+      buildHotspots();
+    }
+  });
+}
+
+// ============================================================================
+// GLOBAL ERA DEFINITIONS
+// ============================================================================
+const GLOBAL_ERAS = [
+  { label: '1800–1915', start: 1800, end: 1915 },
+  { label: '1916–1929', start: 1916, end: 1929 },
+  { label: '1930–1969', start: 1930, end: 1969 },
+  { label: '1970–1989', start: 1970, end: 1989 }
+];
+
+let currentEraIdx = 0;
+
+function getPhotoForEra(building, era) {
+  let best = null;
+  for (const t of building.timeline) {
+    for (const p of t.photos) {
+      if (p.year >= era.start && p.year <= era.end) {
+        if (!best || p.year < best.year) best = p;
+      }
+    }
+  }
+  return best;
+}
+
+function getTimelineNameForYear(building, year) {
+  for (const t of building.timeline) {
+    const afterStart = !t.start || year >= t.start;
+    const beforeEnd = !t.end || year <= t.end;
+    if (afterStart && beforeEnd) return t.name;
+  }
+  return building.name;
+}
+
+// ============================================================================
+// HOTSPOT OVERLAY (thumbnail pins positioned by Cesium each frame)
+// ============================================================================
+const buildingCartesians = new Map();
+const MARKER_OFFSET = 8; // metres above sampled surface
+
+function buildHotspots() {
+  BUILDINGS.forEach((b) => {
+    const el = document.createElement('div');
+    el.className = 'hotspot';
+    el.innerHTML = `
+      <div class="hotspot-pulse"></div>
+      <div class="hotspot-thumb"><img src="" alt=""></div>
+      <div class="hotspot-stem"></div>
+    `;
+    el.addEventListener('click', () => onHotspotClick(b));
+    document.body.appendChild(el);
+    hotspotElements.set(b.id, el);
+
+    buildingCartesians.set(b.id, Cesium.Cartesian3.fromDegrees(b.lon, b.lat, b.altitude + MARKER_OFFSET));
+  });
+
+  viewer.scene.postRender.addEventListener(updateHotspotPositions);
+  initEraSelector();
+  switchEra(0);
+}
+
+function onHotspotClick(b) {
+  const era = GLOBAL_ERAS[currentEraIdx];
+  const photo = getPhotoForEra(b, era);
+  if (photo) {
+    flyToBuilding(b, () => showPhoto(b));
+  } else {
+    const bestEra = findBestEraForBuilding(b);
+    if (bestEra !== -1) switchEra(bestEra);
+  }
+}
+
+function findBestEraForBuilding(b) {
+  for (let i = 0; i < GLOBAL_ERAS.length; i++) {
+    if (getPhotoForEra(b, GLOBAL_ERAS[i])) return i;
+  }
+  return -1;
+}
+
+// Re-sample surface heights from 3D tiles until all buildings resolve
+let heightsResolved = 0;
+function resampleHeights() {
+  if (heightsResolved >= BUILDINGS.length) return;
+  heightsResolved = 0;
+  BUILDINGS.forEach((b) => {
+    if (b._heightSampled) { heightsResolved++; return; }
+    const carto = Cesium.Cartographic.fromDegrees(b.lon, b.lat);
+    const h = viewer.scene.sampleHeight(carto);
+    if (h != null) {
+      b._heightSampled = true;
+      buildingCartesians.set(b.id, Cesium.Cartesian3.fromDegrees(b.lon, b.lat, h + MARKER_OFFSET));
+      heightsResolved++;
+    }
+  });
+}
+
+function updateHotspotPositions() {
+  resampleHeights();
+
+  BUILDINGS.forEach((b) => {
+    const el = hotspotElements.get(b.id);
+    if (!el) return;
+
+    const cartesian = buildingCartesians.get(b.id);
+    const screen = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, cartesian);
+
+    if (!screen) {
+      el.style.display = 'none';
+      return;
+    }
+
+    const cameraPos = viewer.camera.positionWC;
+    const toPin = Cesium.Cartesian3.subtract(cartesian, cameraPos, new Cesium.Cartesian3());
+    const dot = Cesium.Cartesian3.dot(viewer.camera.directionWC, toPin);
+    if (dot < 0) {
+      el.style.display = 'none';
+      return;
+    }
+
+    el.style.display = 'block';
+    el.style.left = screen.x + 'px';
+    el.style.top = screen.y + 'px';
+  });
+}
+
+// ============================================================================
+// ERA SELECTOR
+// ============================================================================
+function initEraSelector() {
+  document.querySelectorAll('.era-btn').forEach((btn) => {
+    btn.addEventListener('click', () => switchEra(parseInt(btn.dataset.era)));
+  });
+}
+
+const ERA_FILTERS = [
+  'sepia(1) saturate(0.4) contrast(1.1) brightness(0.9)',
+  'grayscale(1) sepia(0.35) hue-rotate(185deg) saturate(0.7) contrast(1.1) brightness(0.9)',
+  'saturate(0.65) contrast(1.05) brightness(0.95)',
+  'none'
+];
+
+function switchEra(idx) {
+  currentEraIdx = idx;
+  const era = GLOBAL_ERAS[idx];
+
+  document.getElementById('cesiumContainer').style.filter = ERA_FILTERS[idx];
+
+  document.querySelectorAll('.era-btn').forEach((btn, i) =>
+    btn.classList.toggle('active', i === idx)
+  );
+
+  document.querySelectorAll('.header-art').forEach((art) =>
+    art.classList.toggle('active', parseInt(art.dataset.era) === idx)
+  );
+
+  const startYear = era.label.split('–')[0];
+  const endYear = era.label.split('–')[1];
+  document.getElementById('eraYearStart').textContent = startYear;
+  document.getElementById('eraYearEnd').textContent = endYear;
+
+  BUILDINGS.forEach((b) => {
+    const el = hotspotElements.get(b.id);
+    const photo = getPhotoForEra(b, era);
+
+    if (photo) {
+      el.classList.remove('no-photo');
+      const img = el.querySelector('img');
+      img.src = photo.url;
+      img.alt = `${b.name}, c.${photo.year}`;
+    } else {
+      el.classList.add('no-photo');
+    }
+  });
+
+  closeViewer();
+}
+
+// ============================================================================
+// PHOTO LIGHTBOX (fullscreen overlay)
+// ============================================================================
+let overviewCamera = null;
+
+function saveOverviewCamera() {
+  overviewCamera = {
+    position: viewer.camera.position.clone(),
+    direction: viewer.camera.direction.clone(),
+    up: viewer.camera.up.clone()
+  };
+}
+
+function getTimelineEntryForYear(building, year) {
+  for (const t of building.timeline) {
+    const afterStart = !t.start || year >= t.start;
+    const beforeEnd = !t.end || year <= t.end;
+    if (afterStart && beforeEnd) return t;
+  }
+  return building.timeline[0];
+}
+
+function formatDateRange(entry) {
+  const start = entry.start || '?';
+  const end = entry.end || 'present';
+  return `${start}–${end}`;
+}
+
+function showPhoto(b) {
+  const era = GLOBAL_ERAS[currentEraIdx];
+  const photo = getPhotoForEra(b, era);
+  if (!photo) return;
+
+  const entry = getTimelineEntryForYear(b, photo.year);
+  const name = entry ? entry.name : b.name;
+  document.getElementById('viewerImg').src = photo.url;
+  document.getElementById('viewerImg').alt = `${name}, c.${photo.year}`;
+  document.getElementById('viewerName').textContent = name;
+  document.getElementById('viewerDateRange').textContent = entry ? formatDateRange(entry) : '';
+  document.getElementById('viewerDate').textContent = `C. ${photo.year}`;
+  document.getElementById('photoViewer').classList.add('open');
+  document.body.classList.add('viewer-active');
+  document.getElementById('viewerClose').classList.add('visible');
+}
+
+function closeViewer() {
+  document.getElementById('photoViewer').classList.remove('open');
+  document.body.classList.remove('viewer-active');
+  document.getElementById('viewerClose').classList.remove('visible');
+  if (overviewCamera) {
+    viewer.camera.flyTo({
+      destination: overviewCamera.position,
+      orientation: {
+        direction: overviewCamera.direction,
+        up: overviewCamera.up
+      },
+      duration: 1.4
+    });
+  }
+}
+
+document.getElementById('viewerClose').addEventListener('click', closeViewer);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeViewer();
+});
+
+function flyToBuilding(b, onComplete) {
+  const STREET_BEARING = 20;
+  const OFFSET_M = 100;
+  const ALT = 110;
+
+  saveOverviewCamera();
+
+  const camBearing = b.side === 'west' ? STREET_BEARING + 90 : STREET_BEARING - 90;
+  const camBearingRad = Cesium.Math.toRadians(camBearing);
+
+  const mPerDegreeLat = 111000;
+  const mPerDegreeLon = 111000 * Math.cos(Cesium.Math.toRadians(b.lat));
+
+  const dLat = (OFFSET_M * Math.cos(camBearingRad)) / mPerDegreeLat;
+  const dLon = (OFFSET_M * Math.sin(camBearingRad)) / mPerDegreeLon;
+
+  const heading = ((camBearing + 180) % 360 + 360) % 360;
+
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(b.lon + dLon, b.lat + dLat, ALT),
+    orientation: {
+      heading: Cesium.Math.toRadians(heading),
+      pitch: Cesium.Math.toRadians(-30),
+      roll: 0
+    },
+    duration: 1.6,
+    complete: () => { if (onComplete) onComplete(); }
+  });
+}
+</script>
+</body>
+</html>
